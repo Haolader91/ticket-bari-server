@@ -148,6 +148,39 @@ async function run() {
       }
     });
 
+    // ===================================================
+    // ১.  APPROVED ticket sadharon user der ke dekhanor jonne
+    app.get("/api/tickets", async (req, res) => {
+      try {
+        const query = { status: "approved" };
+        const tickets = await ticketsCollection
+          .find(query)
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send({ success: true, data: tickets });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    app.get("/api/tickets/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const ticket = await ticketsCollection.findOne(query);
+
+        if (ticket) {
+          res.send({ success: true, data: ticket });
+        } else {
+          res.status(404).send({ success: false, error: "Ticket not found" });
+        }
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =====================================================
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
