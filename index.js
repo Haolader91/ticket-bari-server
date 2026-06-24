@@ -92,6 +92,41 @@ async function run() {
       }
     });
 
+    // ৪. (PUT)
+    app.put("/api/tickets/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+        const updatedData = req.body;
+
+        const updateDoc = {
+          $set: {
+            title: updatedData.title,
+            from: updatedData.from,
+            to: updatedData.to,
+            price: parseFloat(updatedData.price),
+            quantity: parseInt(updatedData.quantity),
+            departureDateTime: updatedData.departureDateTime,
+            image: updatedData.image,
+            status: "pending",
+          },
+        };
+
+        const result = await ticketsCollection.updateOne(filter, updateDoc);
+
+        if (result.matchedCount === 1) {
+          res.send({
+            success: true,
+            message: "Ticket updated successfully in database!",
+          });
+        } else {
+          res.status(404).send({ success: false, error: "Ticket not found" });
+        }
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
     //  (DELETE)
     app.delete("/api/tickets/:id", async (req, res) => {
       try {
