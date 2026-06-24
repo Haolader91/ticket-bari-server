@@ -181,6 +181,56 @@ async function run() {
     });
 
     // =====================================================
+
+    // =========================================================================
+    // ১. ADMIN PANEL:
+    // =========================================================================
+    app.get("/api/admin/tickets", async (req, res) => {
+      try {
+        const tickets = await ticketsCollection
+          .find()
+          .sort({ createdAt: -1 })
+          .toArray();
+        res.send({ success: true, data: tickets });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // ২. ADMIN PANEL
+    // =========================================================================
+    app.post("/api/admin/tickets/:id/status", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
+
+        if (!["approved", "rejected"].includes(status)) {
+          return res
+            .status(400)
+            .send({ success: false, error: "Invalid status" });
+        }
+
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: { status: status },
+        };
+
+        const result = await ticketsCollection.updateOne(filter, updateDoc);
+        if (result.matchedCount === 1) {
+          res.send({
+            success: true,
+            message: `Ticket status updated to ${status}`,
+          });
+        } else {
+          res.status(404).send({ success: false, error: "Ticket not found" });
+        }
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+    // =======================================================
+
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
