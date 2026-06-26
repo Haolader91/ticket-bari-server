@@ -299,6 +299,30 @@ async function run() {
     });
 
     // =========================================================================
+    // 🧑‍💼 ইউজার প্যানেল: লগইন থাকা ইউজারের নিজস্ব বুকিং লিস্ট দেখার API (GET)
+    // =========================================================================
+    app.get("/api/user/bookings", async (req, res) => {
+      try {
+        const { email } = req.query;
+        if (!email) {
+          return res
+            .status(400)
+            .send({ success: false, error: "User email is required" });
+        }
+
+        // ডাটাবেজ থেকে ইউজার অনুযায়ী বুকিং ডাটা নিয়ে আসা
+        const bookings = await bookingsCollection
+          .find({ userEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send({ success: true, data: bookings });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
