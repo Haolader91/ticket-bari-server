@@ -29,8 +29,12 @@ async function run() {
   try {
     const db = client.db("ticketBari");
     const ticketsCollection = db.collection("tickets");
+    const bookingsCollection = db.collection("bookings");
+    const transactionsCollection = db.collection("transactions"); // 🆕 নতুন কালেকশন: ট্রানজেকশন হিস্ট্রির জন্য
 
-    // (POST)
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: নতুন টিকিট ডাটাবেজে যোগ করার API (POST)
+    // =========================================================================
     app.post("/api/tickets", async (req, res) => {
       try {
         const {
@@ -69,7 +73,9 @@ async function run() {
       }
     });
 
-    // ২.  (GET)
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: লগইন থাকা ভেন্ডরের নিজস্ব টিকিটগুলো দেখার API (GET)
+    // =========================================================================
     app.get("/api/vendor/tickets", async (req, res) => {
       try {
         const { email } = req.query;
@@ -92,7 +98,9 @@ async function run() {
       }
     });
 
-    // ৪. (PUT)
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: টিকিট এডিট/আপডেট করার API (PUT)
+    // =========================================================================
     app.put("/api/tickets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -127,7 +135,9 @@ async function run() {
       }
     });
 
-    //  (DELETE)
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: টিকিট ডিলিট করার API (DELETE)
+    // =========================================================================
     app.delete("/api/tickets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -148,8 +158,9 @@ async function run() {
       }
     });
 
-    // ===================================================
-    // ১.  APPROVED ticket sadharon user der ke dekhanor jonne
+    // =========================================================================
+    // 🧑‍💼 ইউজার প্যানেল: এডমিন কর্তৃক APPROVED সব টিকিট হোম/লিস্টিং পেজে দেখার API (GET)
+    // =========================================================================
     app.get("/api/tickets", async (req, res) => {
       try {
         const query = { status: "approved" };
@@ -164,6 +175,9 @@ async function run() {
       }
     });
 
+    // =========================================================================
+    // 🧑‍💼 ইউজার প্যানেল: টিকিট ডিটেইলস পেজে সিঙ্গেল টিকিটের ডাটা লোড করার API (GET)
+    // =========================================================================
     app.get("/api/tickets/:id", async (req, res) => {
       try {
         const id = req.params.id;
@@ -180,10 +194,8 @@ async function run() {
       }
     });
 
-    // =====================================================
-
     // =========================================================================
-    // ১. ADMIN PANEL:
+    // 👑 এডমিন প্যানেল: পেন্ডিং বা সব ভেন্ডরের টিকিট লিস্ট দেখার API (GET)
     // =========================================================================
     app.get("/api/admin/tickets", async (req, res) => {
       try {
@@ -198,7 +210,7 @@ async function run() {
     });
 
     // =========================================================================
-    // ২. ADMIN PANEL
+    // 👑 এডমিন প্যানেল: ভেন্ডরের টিকিট Approve বা Reject করার API (POST)
     // =========================================================================
     app.post("/api/admin/tickets/:id/status", async (req, res) => {
       try {
@@ -229,7 +241,64 @@ async function run() {
         res.status(500).send({ success: false, error: error.message });
       }
     });
-    // =======================================================
+
+    // =========================================================================
+    // 🧑‍💼 ইউজার প্যানেল: 'Book Now' ক্লিক করলে নতুন বুকিং ক্রিয়েট এবং মেইন স্টক থেকে সিট মাইনাস করার API (POST)
+    // =========================================================================
+    app.post("/api/bookings", async (req, res) => {
+      try {
+        const { ticketId, userEmail, user, bookingQuantity, totalPrice } =
+          req.body;
+
+        const ticket = await ticketsCollection.findOne({
+          _id: new ObjectId(ticketId),
+        });
+        if (!ticket) {
+          return res
+            .status(404)
+            .send({ success: false, error: "Ticket not found!" });
+        }
+
+        if (ticket.quantity < parseInt(bookingQuantity)) {
+          return res
+            .status(400)
+            .send({ success: false, error: "Not enough available seats!" });
+        }
+
+        const newBooking = {
+          ticketId,
+          ticketTitle: ticket.title,
+          ticketImage: ticket.image,
+          from: ticket.from,
+          to: ticket.to,
+          departureDate: ticket.departureDateTime,
+          vendorEmail: ticket.vendorEmail,
+          userEmail,
+          user,
+          bookingQuantity: parseInt(bookingQuantity),
+          totalPrice: parseFloat(totalPrice),
+          status: "pending",
+          createdAt: new Date(),
+        };
+
+        const bookingResult = await bookingsCollection.insertOne(newBooking);
+
+        await ticketsCollection.updateOne(
+          { _id: new ObjectId(ticketId) },
+          { $inc: { quantity: -parseInt(bookingQuantity) } },
+        );
+
+        res.status(201).send({
+          success: true,
+          message: "Booking requested and seat count reduced!",
+          bookingId: bookingResult.insertedId,
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
