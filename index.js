@@ -321,6 +321,28 @@ async function run() {
         res.status(500).send({ success: false, error: error.message });
       }
     });
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: ভেন্ডরের নিজস্ব টিকিটের বিপরীতে আসা বুকিং রিকোয়েস্ট লিস্ট দেখার API (GET)
+    // =========================================================================
+    app.get("/api/vendor/bookings", async (req, res) => {
+      try {
+        const { email } = req.query;
+        if (!email) {
+          return res
+            .status(400)
+            .send({ success: false, error: "Vendor email is required" });
+        }
+
+        const bookings = await bookingsCollection
+          .find({ vendorEmail: email })
+          .sort({ createdAt: -1 })
+          .toArray();
+
+        res.send({ success: true, data: bookings });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
 
     // =========================================================================
 
