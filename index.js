@@ -30,7 +30,11 @@ async function run() {
     const db = client.db("ticketBari");
     const ticketsCollection = db.collection("tickets");
     const bookingsCollection = db.collection("bookings");
-    const transactionsCollection = db.collection("transactions"); // 🆕 নতুন কালেকশন: ট্রানজেকশন হিস্ট্রির জন্য
+    // const usersCollection = db.collection("user");
+
+    const authDb = client.db("Ticket-Bari");
+
+    const usersCollection = authDb.collection("user");
 
     // =========================================================================
     // 🚌 ভেন্ডর প্যানেল: নতুন টিকিট ডাটাবেজে যোগ করার API (POST)
@@ -47,6 +51,16 @@ async function run() {
           image,
           vendorEmail,
         } = req.body;
+
+        const vendor = await usersCollection.findOne({ email: vendorEmail });
+
+        if (vendor?.isFraud) {
+          return res.status(403).send({
+            success: false,
+            error:
+              "You are suspended for fraudulent activity! Cannot add new tickets.",
+          });
+        }
 
         const newTicket = {
           title,
@@ -163,7 +177,16 @@ async function run() {
     // =========================================================================
     app.get("/api/tickets", async (req, res) => {
       try {
-        const query = { status: "approved" };
+        const fraudVendors = await usersCollection
+          .find({ isFraud: true, role: "vendor" })
+          .toArray();
+
+        const fraudEmails = fraudVendors.map((vendor) => vendor.email);
+
+        const query = {
+          status: "approved",
+          vendorEmail: { $nin: fraudEmails },
+        };
         const tickets = await ticketsCollection
           .find(query)
           .sort({ createdAt: -1 })
@@ -389,6 +412,75 @@ async function run() {
     });
 
     // =========================================================================
+    // 👑 এডমিন প্যানেল: সব ইউজারদের লিস্ট দেখার API (GET)
+    // =========================================================================
+    app.get("/api/users", async (req, res) => {
+      try {
+        const users = await usersCollection.find().toArray();
+        res.send({ success: true, data: users });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // 👑 এডমিন প্যানেল: ইউজারের রোল (Admin/Vendor) পরিবর্তন করার API (PATCH)
+    // =========================================================================
+    app.patch("/api/users/:id/role", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { role } = req.body;
+
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = { $set: { role: role } };
+
+        const result = await usersCollection.updateOne(filter, updateDoc);
+        res.send({
+          success: true,
+          message: `Role updated to ${role} successfully!`,
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // 👑 এডমিন প্যানেল: ভেন্ডরকে FRAUD মার্ক করা এবং তার টিকিট হাইড করার API (PATCH)
+    // =========================================================================
+    app.patch("/api/users/:id/fraud", async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        // ১. প্রথমে ইউজারকে ফ্রড মার্ক এবং সাসপেন্ড করা হলো
+        const userFilter = { _id: new ObjectId(id) };
+        const user = await usersCollection.findOne(userFilter);
+
+        if (!user) {
+          return res
+            .status(404)
+            .send({ success: false, error: "User not found" });
+        }
+
+        await usersCollection.updateOne(userFilter, {
+          $set: { isFraud: true },
+        });
+
+        // ২. রিকোয়ারমেন্ট অনুযায়ী ওই ভেন্ডরের সব টিকিট প্ল্যাটফর্ম থেকে হাইড (status: "hidden" বা ডিলিট) করা
+        if (user.role === "vendor") {
+          await ticketsCollection.updateMany(
+            { vendorEmail: user.email },
+            { $set: { status: "rejected" } }, // অথবা "hidden" দিতে পারেন যাতে ইউজার পেজে না দেখায়
+          );
+        }
+
+        res.send({
+          success: true,
+          message: "Vendor marked as fraud and tickets hidden!",
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
 
     // =========================================================================
 
