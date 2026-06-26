@@ -343,6 +343,52 @@ async function run() {
         res.status(500).send({ success: false, error: error.message });
       }
     });
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: ইউজারের বুকিং রিকোয়েস্ট Accept বা Reject করার API (POST)
+    // (রিজেক্ট করলে টিকিট পুনরায় মেইন স্টকে প্লাস/ফেরত হবে)
+    // =========================================================================
+    app.post("/api/vendor/bookings/:id/status", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { status } = req.body;
+
+        if (!["accepted", "rejected"].includes(status)) {
+          return res
+            .status(400)
+            .send({ success: false, error: "Invalid status" });
+        }
+
+        const booking = await bookingsCollection.findOne({
+          _id: new ObjectId(id),
+        });
+        if (!booking) {
+          return res
+            .status(404)
+            .send({ success: false, error: "Booking request not found" });
+        }
+
+        const result = await bookingsCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: { status: status } },
+        );
+
+        if (status === "rejected") {
+          await ticketsCollection.updateOne(
+            { _id: new ObjectId(booking.ticketId) },
+            { $inc: { quantity: booking.bookingQuantity } },
+          );
+        }
+
+        res.send({
+          success: true,
+          message: `Booking request has been ${status}`,
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
 
     // =========================================================================
 
