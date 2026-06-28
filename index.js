@@ -3,12 +3,21 @@ const app = express();
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 
-const port = process.env.PORT || 8080;
+// app.use(cors());
+app.use(
+  cors({
+    origin: "http://localhost:3000", // আপনার ফ্রন্টএন্ড ইউআরএল
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    credentials: true,
+  }),
+);
+app.use(express.json());
 
 require("dotenv").config();
 
-app.use(cors());
-app.use(express.json());
+const port = process.env.PORT || 8080;
+
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -412,7 +421,7 @@ async function run() {
     });
 
     // =========================================================================
-    // 👑 এডমিন প্যানেল: সব ইউজারদের লিস্ট দেখার API (GET)
+    //  এডমিন প্যানেল: সব ইউজারদের লিস্ট দেখার API (GET)
     // =========================================================================
     app.get("/api/users", async (req, res) => {
       try {
@@ -424,7 +433,7 @@ async function run() {
     });
 
     // =========================================================================
-    // 👑 এডমিন প্যানেল: ইউজারের রোল (Admin/Vendor) পরিবর্তন করার API (PATCH)
+    //  এডমিন প্যানেল: ইউজারের রোল (Admin/Vendor) পরিবর্তন করার API (PATCH)
     // =========================================================================
     app.patch("/api/users/:id/role", async (req, res) => {
       try {
@@ -445,13 +454,12 @@ async function run() {
     });
 
     // =========================================================================
-    // 👑 এডমিন প্যানেল: ভেন্ডরকে FRAUD মার্ক করা এবং তার টিকিট হাইড করার API (PATCH)
+    // এডমিন প্যানেল: ভেন্ডরকে FRAUD মার্ক করা এবং তার টিকিট হাইড করার API (PATCH)
     // =========================================================================
     app.patch("/api/users/:id/fraud", async (req, res) => {
       try {
         const id = req.params.id;
 
-        // ১. প্রথমে ইউজারকে ফ্রড মার্ক এবং সাসপেন্ড করা হলো
         const userFilter = { _id: new ObjectId(id) };
         const user = await usersCollection.findOne(userFilter);
 
@@ -465,11 +473,10 @@ async function run() {
           $set: { isFraud: true },
         });
 
-        // ২. রিকোয়ারমেন্ট অনুযায়ী ওই ভেন্ডরের সব টিকিট প্ল্যাটফর্ম থেকে হাইড (status: "hidden" বা ডিলিট) করা
         if (user.role === "vendor") {
           await ticketsCollection.updateMany(
             { vendorEmail: user.email },
-            { $set: { status: "rejected" } }, // অথবা "hidden" দিতে পারেন যাতে ইউজার পেজে না দেখায়
+            { $set: { status: "rejected" } },
           );
         }
 
@@ -483,6 +490,68 @@ async function run() {
     });
 
     // =========================================================================
+
+    // =========================================================================
+    // পেমেন্ট গেটওয়ে: অ্যাপ্রুভড বুকিং-এর জন্য স্ট্রাইপ সেশন তৈরি করার API (POST)
+    // =========================================================================
+    app.post("/api/create-checkout-session", async (req, res) => {
+      try {
+        const { bookingId } = req.body;
+
+        if (!bookingId) {
+          return res
+            .status(400)
+            .send({ success: false, error: "Booking ID is required" });
+        }
+
+        const booking = await bookingsCollection.findOne({
+          _id: new ObjectId(bookingId),
+        });
+
+        if (!booking) {
+          return res
+            .status(404)
+            .send({ success: false, error: "Booking not found" });
+        }
+
+        if (booking.status !== "accepted") {
+          return res.status(400).send({
+            success: false,
+            error: "This booking is not approved yet",
+          });
+        }
+
+        const session = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          mode: "payment",
+          line_items: [
+            {
+              price_data: {
+                currency: "bdt",
+                product_data: {
+                  name: booking.ticketTitle,
+                  description: `Route: ${booking.from} ➔ ${booking.to}`,
+                },
+
+                unit_amount: Math.round(booking.totalPrice * 100),
+              },
+              quantity: 1,
+            },
+          ],
+
+          metadata: {
+            bookingId: bookingId,
+          },
+
+          success_url: `http://localhost:3000/dashboard/user/my-bookings?payment=success&bookingId=${bookingId}`,
+          cancel_url: `http://localhost:3000/dashboard/user/my-bookings?payment=cancel`,
+        });
+
+        res.send({ success: true, stripeUrl: session.url });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
 
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
