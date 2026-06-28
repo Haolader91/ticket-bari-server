@@ -583,6 +583,91 @@ async function run() {
       }
     });
     // =========================================================================
+    // =========================================================================
+    // 🧑‍💼 ইউজার প্যানেল: ইউজারের ট্রানজেকশন হিস্ট্রি দেখার API (GET)
+    // =========================================================================
+    app.get("/api/user/transaction-history", async (req, res) => {
+      try {
+        const { email } = req.query;
+        if (!email) {
+          return res
+            .status(400)
+            .send({ success: false, error: "User email is required" });
+        }
+
+        const history = await bookingsCollection
+          .find({ userEmail: email, status: "paid" })
+          .sort({ paidAt: -1 })
+          .toArray();
+
+        res.send({ success: true, data: history });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    // 🚌 ভেন্ডর প্যানেল: রেভিনিউ ওভারভিউ এবং গ্রাফের ডাটা পাওয়ার API (GET)
+    // =========================================================================
+    app.get("/api/vendor/revenue-overview", async (req, res) => {
+      try {
+        const { email } = req.query;
+        if (!email) {
+          return res
+            .status(400)
+            .send({ success: false, error: "Vendor email is required" });
+        }
+
+        const overviewStats = await bookingsCollection
+          .aggregate([
+            { $match: { vendorEmail: email, status: "paid" } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$totalPrice" },
+                totalTicketsSold: { $sum: "$bookingQuantity" },
+              },
+            },
+          ])
+          .toArray();
+
+        const stats = overviewStats[0] || {
+          totalRevenue: 0,
+          totalTicketsSold: 0,
+        };
+
+        const graphData = await bookingsCollection
+          .aggregate([
+            { $match: { vendorEmail: email, status: "paid" } },
+            {
+              $group: {
+                _id: { $dateToString: { format: "%Y-%m-%d", date: "$paidAt" } },
+                revenue: { $sum: "$totalPrice" },
+                tickets: { $sum: "$bookingQuantity" },
+              },
+            },
+            { $sort: { _id: 1 } },
+            {
+              $project: {
+                _id: 0,
+                date: "$_id",
+                revenue: 1,
+                tickets: 1,
+              },
+            },
+          ])
+          .toArray();
+
+        res.send({
+          success: true,
+          overview: stats,
+          graphData: graphData,
+        });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+    // ===========================================================
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
