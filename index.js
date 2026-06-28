@@ -553,6 +553,36 @@ async function run() {
       }
     });
 
+    // =========================================================================
+    // 💳 পেমেন্ট সফল হওয়ার পর বুকিং স্ট্যাটাস 'paid' করার API (PATCH)
+    // =========================================================================
+    app.patch("/api/bookings/:id/pay-success", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+
+        const updateDoc = {
+          $set: {
+            status: "paid",
+            paidAt: new Date(),
+          },
+        };
+
+        const result = await bookingsCollection.updateOne(filter, updateDoc);
+
+        if (result.matchedCount === 1) {
+          res.send({
+            success: true,
+            message: "Payment success status updated to paid in database!",
+          });
+        } else {
+          res.status(404).send({ success: false, error: "Booking not found" });
+        }
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+    // =========================================================================
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
