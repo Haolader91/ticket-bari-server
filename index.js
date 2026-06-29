@@ -6,7 +6,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 // app.use(cors());
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin: `${process.env.CLIENT_URL}`,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   }),
@@ -549,8 +549,8 @@ async function run() {
             bookingId: bookingId,
           },
 
-          success_url: `http://localhost:3000/dashboard/user/my-bookings?payment=success&bookingId=${bookingId}`,
-          cancel_url: `http://localhost:3000/dashboard/user/my-bookings?payment=cancel`,
+          success_url: `${process.env.CLIENT_URL}/dashboard/user/my-bookings?payment=success&bookingId=${bookingId}`,
+          cancel_url: `${process.env.CLIENT_URL}/dashboard/user/my-bookings?payment=cancel`,
         });
 
         res.send({ success: true, stripeUrl: session.url });
