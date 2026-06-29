@@ -668,6 +668,104 @@ async function run() {
       }
     });
     // ===========================================================
+
+    // =========================================================================
+    //  এডমিন প্যানেল: টিকিটের Advertisement স্ট্যাটাস Toggle করার API (PATCH)
+    // =========================================================================
+    app.patch("/api/admin/tickets/:id/advertise", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const { isAdvertised } = req.body;
+
+        if (isAdvertised === true) {
+          const activeAdsCount = await ticketsCollection.countDocuments({
+            isAdvertised: true,
+          });
+          if (activeAdsCount >= 6) {
+            return res.status(400).send({
+              success: false,
+              error:
+                "Maximum limit reached! You can only advertise up to 6 tickets.",
+            });
+          }
+        }
+
+        const filter = { _id: new ObjectId(id) };
+        const updateDoc = {
+          $set: { isAdvertised: isAdvertised },
+        };
+
+        const result = await ticketsCollection.updateOne(filter, updateDoc);
+
+        if (result.matchedCount === 1) {
+          res.send({
+            success: true,
+            message: isAdvertised
+              ? "Ticket added to homepage feature!"
+              : "Ticket removed from advertisement",
+          });
+        } else {
+          res.status(404).send({ success: false, error: "Ticket not found" });
+        }
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // =========================================================================
+    //  ইউজার প্যানেল (HOME PAGE): শুধু APRORODED টিকিটগুলো দেখার API (GET)
+    // =========================================================================
+    app.get("/api/featured-tickets", async (req, res) => {
+      try {
+        const fraudVendors = await usersCollection
+          .find({ isFraud: true, role: "vendor" })
+          .toArray();
+        const fraudEmails = fraudVendors.map((vendor) => vendor.email);
+
+        const query = {
+          status: "approved",
+          isAdvertised: true,
+          vendorEmail: { $nin: fraudEmails },
+        };
+
+        const featuredTickets = await ticketsCollection
+          .find(query)
+          .limit(6)
+          .toArray();
+
+        res.send({ success: true, data: featuredTickets });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+    // ======================================================================
+
+    // =========================================================================
+    // ইউজার প্যানেল (HOME PAGE): লেটেস্ট ৮টি টিকিট দেখানোর API (GET)
+    // =========================================================================
+    app.get("/api/latest-tickets", async (req, res) => {
+      try {
+        const fraudVendors = await usersCollection
+          .find({ isFraud: true, role: "vendor" })
+          .toArray();
+        const fraudEmails = fraudVendors.map((vendor) => vendor.email);
+
+        const query = {
+          status: "approved",
+          vendorEmail: { $nin: fraudEmails },
+        };
+
+        const latestTickets = await ticketsCollection
+          .find(query)
+          .sort({ _id: -1 })
+          .limit(8) //
+          .toArray();
+
+        res.send({ success: true, data: latestTickets });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
