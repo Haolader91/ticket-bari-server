@@ -739,6 +739,35 @@ async function run() {
     });
     // ======================================================================
 
+    // =========================================================================
+    // ইউজার প্যানেল (HOME PAGE): লেটেস্ট ৮টি টিকিট দেখানোর API (GET)
+    // =========================================================================
+    app.get("/api/latest-tickets", async (req, res) => {
+      try {
+        const fraudVendors = await usersCollection
+          .find({ isFraud: true, role: "vendor" })
+          .toArray();
+        const fraudEmails = fraudVendors.map((vendor) => vendor.email);
+
+        const query = {
+          status: "approved",
+          vendorEmail: { $nin: fraudEmails },
+        };
+
+        const latestTickets = await ticketsCollection
+          .find(query)
+          .sort({ _id: -1 })
+          .limit(8) //
+          .toArray();
+
+        res.send({ success: true, data: latestTickets });
+      } catch (error) {
+        res.status(500).send({ success: false, error: error.message });
+      }
+    });
+
+    // ==========================================================
+
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
