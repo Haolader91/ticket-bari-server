@@ -6,7 +6,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 // app.use(cors());
 app.use(
   cors({
-    origin: "http://localhost:3000", // আপনার ফ্রন্টএন্ড ইউআরএল
+    origin: "http://localhost:3000",
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
   }),
@@ -711,7 +711,6 @@ async function run() {
         res.status(500).send({ success: false, error: error.message });
       }
     });
-
     // =========================================================================
     //  ইউজার প্যানেল (HOME PAGE): শুধু APRORODED টিকিটগুলো দেখার API (GET)
     // =========================================================================
@@ -740,32 +739,6 @@ async function run() {
     });
     // ======================================================================
 
-    // =========================================================================
-    // ইউজার প্যানেল (HOME PAGE): লেটেস্ট ৮টি টিকিট দেখানোর API (GET)
-    // =========================================================================
-    app.get("/api/latest-tickets", async (req, res) => {
-      try {
-        const fraudVendors = await usersCollection
-          .find({ isFraud: true, role: "vendor" })
-          .toArray();
-        const fraudEmails = fraudVendors.map((vendor) => vendor.email);
-
-        const query = {
-          status: "approved",
-          vendorEmail: { $nin: fraudEmails },
-        };
-
-        const latestTickets = await ticketsCollection
-          .find(query)
-          .sort({ _id: -1 })
-          .limit(8) //
-          .toArray();
-
-        res.send({ success: true, data: latestTickets });
-      } catch (error) {
-        res.status(500).send({ success: false, error: error.message });
-      }
-    });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!",
     );
