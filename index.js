@@ -59,6 +59,8 @@ async function run() {
           departureDateTime,
           image,
           vendorEmail,
+          transportType,
+          perks,
         } = req.body;
 
         const vendor = await usersCollection.findOne({ email: vendorEmail });
@@ -80,6 +82,8 @@ async function run() {
           departureDateTime,
           image,
           vendorEmail,
+          transportType: transportType || "Bus",
+          perks: perks || [],
           status: "pending",
           isAdvertised: false,
           createdAt: new Date(),
@@ -139,6 +143,8 @@ async function run() {
             quantity: parseInt(updatedData.quantity),
             departureDateTime: updatedData.departureDateTime,
             image: updatedData.image,
+            transportType: updatedData.transportType,
+            perks: updatedData.perks,
             status: "pending",
           },
         };
